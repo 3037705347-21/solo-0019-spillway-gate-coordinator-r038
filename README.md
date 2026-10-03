@@ -18,6 +18,7 @@ POST /gates
 GET  /gates/{id}
 POST /commands
 GET  /commands/{id}
+PUT  /commands/{id}
 POST /commands/{id}/interlock
 POST /commands/{id}/execute
 ```
@@ -43,6 +44,19 @@ POST /commands/{id}/execute
   "requested_by": "dispatcher-lin"
 }
 ```
+
+安全复核前，调度员可以替换待复核命令的业务事实：
+
+```json
+{
+  "target_aperture": 2.6,
+  "reason": "最新来水预报调整",
+  "requested_by": "dispatcher-lin",
+  "expected_version": 1
+}
+```
+
+替换成功后命令 ID 和起始开度保持不变，版本号递增；旧目标开度、申请依据、版本和被替换时间保留在 `revisions` 中。后续复核只处理当前快照，旧内容不能再被独立复核。`expected_version` 必须等于读取到的当前版本；重复提交、复核抢先或命令已进入其他状态都会返回冲突且不改变原申请。
 
 联锁复核示例：
 
@@ -80,12 +94,13 @@ POST /commands/{id}/execute
 ```sh
 go run ./cmd/workflowcheck --workflow register-gate
 go run ./cmd/workflowcheck --workflow request-gate-command
+go run ./cmd/workflowcheck --workflow replace-gate-command
 go run ./cmd/workflowcheck --workflow review-safety-interlock
 go run ./cmd/workflowcheck --workflow execute-gate-command
 ```
 
 这些检查会创建临时 HTTP 服务并调用真实路由。它们不调用外部网络，也不依赖数据库。
 
-## 测试状态
+## 测试
 
-测试有意延后。当前交付仅包含初始化基线和生产级 smoke 检查；后续任务阶段会添加自动化测试与红绿验证，不应把当前没有测试文件视为项目未完成。
+`cmd/workflowcheck` 通过临时真实 HTTP 服务覆盖五条工作流；替换流程的领域规则、并发胜负和 HTTP 持久化结果另有 Go 测试覆盖。

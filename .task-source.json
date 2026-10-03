@@ -24,6 +24,8 @@
       "invariants": [
         "起始开度在创建时冻结",
         "待复核命令没有执行令牌",
+        "复核前只能用版本匹配的替换生成新的当前业务事实",
+        "被替换的旧业务事实只能追溯，不能再次复核或占用闸门",
         "执行令牌在终态后不可复用",
         "拒绝、完成和中止都是单向终态"
       ]
@@ -76,12 +78,15 @@
       "transitions": [
         "pending->approved",
         "pending->rejected",
+        "pending->pending",
         "approved->executing",
         "executing->completed",
         "executing->aborted"
       ],
       "invariants": [
         "只有 pending 可以复核",
+        "替换必须仍为 pending 且 expected_version 匹配",
+        "替换保留旧业务事实并递增版本，但不改变命令 ID 或起始开度",
         "只有 approved 可以执行",
         "终态不可回退",
         "版本号在每次转换后递增"

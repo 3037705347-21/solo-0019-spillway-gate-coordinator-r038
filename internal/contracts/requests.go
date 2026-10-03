@@ -14,6 +14,14 @@ type RequestCommandRequest struct {
 	RequestedBy    string  `json:"requested_by"`
 }
 
+type ReplaceCommandRequest struct {
+	TargetAperture  float64 `json:"target_aperture"`
+	Reason          string  `json:"reason"`
+	RequestedBy     string  `json:"requested_by"`
+	ExpectedVersion int64   `json:"expected_version"`
+	Version         int64   `json:"version"`
+}
+
 type ReviewInterlockRequest struct {
 	Verdict  string `json:"verdict"`
 	Verifier string `json:"verifier"`

@@ -35,6 +35,10 @@ func (c *apiClient) post(path string, payload any) (apiResult, error) {
 	return c.do(http.MethodPost, path, payload)
 }
 
+func (c *apiClient) put(path string, payload any) (apiResult, error) {
+	return c.do(http.MethodPut, path, payload)
+}
+
 func (c *apiClient) do(method, path string, payload any) (apiResult, error) {
 	var body io.Reader
 	if payload != nil {
@@ -125,6 +129,34 @@ func floatField(object map[string]any, name string) (float64, error) {
 		return 0, fmt.Errorf("object field %q is not a number", name)
 	}
 	return number, nil
+}
+
+func numberField(object map[string]any, name string) (int64, error) {
+	value, err := floatField(object, name)
+	if err != nil {
+		return 0, err
+	}
+	return int64(value), nil
+}
+
+func objectArrayField(object map[string]any, name string) ([]map[string]any, error) {
+	value, exists := object[name]
+	if !exists {
+		return nil, fmt.Errorf("object is missing array field %q", name)
+	}
+	items, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("object field %q is not an array", name)
+	}
+	result := make([]map[string]any, len(items))
+	for i, item := range items {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("array field %q item %d is not an object", name, i)
+		}
+		result[i] = entry
+	}
+	return result, nil
 }
 
 func prettyBody(body map[string]any) string {

@@ -24,6 +24,24 @@ func gateView(gate domain.Gate) contracts.GateView {
 	}
 }
 
+func commandRevisionViews(revisions []domain.CommandRevision) []contracts.CommandRevisionView {
+	if len(revisions) == 0 {
+		return nil
+	}
+	result := make([]contracts.CommandRevisionView, len(revisions))
+	for i, revision := range revisions {
+		result[i] = contracts.CommandRevisionView{
+			TargetAperture:   revision.TargetAperture,
+			StartingAperture: revision.StartingAperture,
+			Reason:           revision.Reason,
+			RequestedBy:      revision.RequestedBy,
+			Version:          revision.Version,
+			SupersededAt:     formatTime(revision.SupersededAt),
+		}
+	}
+	return result
+}
+
 func commandView(command domain.GateCommand, includeToken bool) contracts.CommandView {
 	view := contracts.CommandView{
 		ID:               command.ID,
@@ -33,6 +51,7 @@ func commandView(command domain.GateCommand, includeToken bool) contracts.Comman
 		Reason:           command.Reason,
 		RequestedBy:      command.RequestedBy,
 		Status:           string(command.Status),
+		Revisions:        commandRevisionViews(command.Revisions),
 		ExecutedBy:       command.ExecutedBy,
 		TerminalReason:   command.TerminalReason,
 		CreatedAt:        formatTime(command.CreatedAt),

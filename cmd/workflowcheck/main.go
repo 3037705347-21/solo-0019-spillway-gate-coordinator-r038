@@ -28,6 +28,8 @@ func main() {
 		err = runRegisterGate(client)
 	case "request-gate-command":
 		err = runRequestCommand(client)
+	case "replace-gate-command":
+		err = runReplaceGateCommand(client)
 	case "review-safety-interlock":
 		err = runReviewSafetyInterlock(client)
 	case "execute-gate-command":

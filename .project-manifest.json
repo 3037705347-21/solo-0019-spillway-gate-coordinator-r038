@@ -84,6 +84,27 @@
       ]
     },
     {
+      "id": "replace-gate-command",
+      "name": "Replace gate command",
+      "entry": "PUT /commands/{id}",
+      "steps": [
+        "verify the command is still pending and expected_version matches",
+        "replace target aperture or reason and retain the starting aperture",
+        "append the prior facts to the immutable revision history"
+      ],
+      "success": "returns the same command id with incremented version and current facts",
+      "failure": "returns stable conflict for stale replacement, review win, or non-pending state without changing the original application",
+      "verification": "workflowcheck replaces a pending command, proves revisions retain old facts, and verifies stale or post-review replacement fails",
+      "module_ids": [
+        "entrypoint",
+        "httpapi",
+        "coordination",
+        "domain",
+        "storage",
+        "contracts"
+      ]
+    },
+    {
       "id": "review-safety-interlock",
       "name": "Review safety interlock",
       "entry": "POST /commands/{id}/interlock",
@@ -133,6 +154,6 @@
       "resource_lifetime",
       "error_propagation"
     ],
-    "notes": "Gate reservation and command transitions are committed under one repository lock; execution tokens are single-command resources and become invalid after a terminal transition."
+    "notes": "Gate reservation and command transitions are committed under one repository lock; execution tokens are single-command resources and become invalid after a terminal transition. Pending replacement uses optimistic versions and is serialized with review under the same repository lock."
   }
 }

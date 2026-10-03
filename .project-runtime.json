@@ -20,6 +20,10 @@
       "command": "go run ./cmd/workflowcheck --workflow request-gate-command"
     },
     {
+      "workflow_id": "replace-gate-command",
+      "command": "go run ./cmd/workflowcheck --workflow replace-gate-command"
+    },
+    {
       "workflow_id": "review-safety-interlock",
       "command": "go run ./cmd/workflowcheck --workflow review-safety-interlock"
     },

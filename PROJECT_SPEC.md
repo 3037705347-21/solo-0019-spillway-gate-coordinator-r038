@@ -26,6 +26,10 @@
 
 运行协调员通过 `POST /commands` 提交开度调整命令。服务读取闸门当前开度和限制，校验目标开度与申请信息，创建待复核命令并冻结起始开度。
 
+### replace-gate-command
+
+运行协调员在安全复核前通过 `PUT /commands/{id}` 替换待复核命令的目标开度或申请依据。替换使用 `expected_version` 做乐观并发保护；只有版本匹配且命令仍为 pending 时才写入。命令 ID、闸门和起始开度保持不变，新版本承载当前有效申请，旧目标开度、申请依据、版本和被替换时间进入修订记录。重复替换、安全复核抢先或命令已经进入其他状态时返回冲突，且原申请保持不变。旧内容仅可通过修订记录追溯，不能再次复核、签发令牌或占用闸门。
+
 ### review-safety-interlock
 
 安全复核员通过 `POST /commands/{id}/interlock` 提交复核结论。clear 结论会原子占用闸门并签发一次执行令牌；blocked 结论会把命令置为 rejected。其他命令先占用同一闸门时，当前 clear 结论返回冲突且不改变闸门。
@@ -39,6 +43,8 @@
 - `gate` 状态：idle、reserved、moving、faulted。
 - `gate_command` 状态：pending、approved、rejected、executing、completed、aborted。
 - 只有 pending 命令可以复核。
+- 只有 pending 命令且版本匹配时才能替换业务事实；替换后后续复核只读取当前版本。
+- 被替换的旧业务事实保存在同一命令的修订记录中，不能再次复核或占用闸门。
 - 只有 approved 命令可以执行，且执行令牌必须匹配。
 - clear 复核与闸门占用必须同时成功；任一步失败时两者都不写入。
 - blocked 复核使命令 rejected，不会占用闸门。
@@ -62,6 +68,7 @@
 - `GET /gates/{id}`
 - `POST /commands`
 - `GET /commands/{id}`
+- `PUT /commands/{id}`
 - `POST /commands/{id}/interlock`
 - `POST /commands/{id}/execute`
 
@@ -73,4 +80,4 @@
 
 ## 验证计划
 
-本初始化基线刻意不生成单元测试、夹具或浏览器测试文件，也不声明 `test_command`。后续任务阶段负责补充测试，并在该阶段建立红绿验证。当前每条工作流通过 `cmd/workflowcheck` 启动真实 HTTP 服务并调用公开接口，校验成功状态、持久化结果和关键失败分支。
+本初始化基线刻意不声明 `test_command`。当前每条工作流通过 `cmd/workflowcheck` 启动真实 HTTP 服务并调用公开接口，校验成功状态、持久化结果和关键失败分支，其中替换工作流会验证当前申请、历史可追溯、重复替换和复核抢先失败；领域、仓库和 HTTP 层也由自动化单元/集成测试覆盖。

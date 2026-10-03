@@ -16,6 +16,15 @@ const (
 	CommandAborted   CommandStatus = "aborted"
 )
 
+type CommandRevision struct {
+	TargetAperture   float64
+	Reason           string
+	RequestedBy      string
+	StartingAperture float64
+	Version          int64
+	SupersededAt     time.Time
+}
+
 type GateCommand struct {
 	ID               string
 	GateID           string
@@ -28,6 +37,7 @@ type GateCommand struct {
 	ExecutionToken   string
 	ExecutedBy       string
 	TerminalReason   string
+	Revisions        []CommandRevision
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Version          int64
@@ -85,6 +95,62 @@ func NewGateCommand(
 		UpdatedAt:        now.UTC(),
 		Version:          1,
 	}, nil
+}
+
+func (c *GateCommand) Replace(
+	targetAperture float64,
+	maxAperture float64,
+	reason string,
+	requestedBy string,
+	expectedVersion int64,
+	now time.Time,
+) error {
+	if c.Status != CommandPending {
+		return Conflict("command_not_pending", "only pending commands can be replaced")
+	}
+	if expectedVersion <= 0 {
+		return Invalid("invalid_expected_version", "expected_version must be greater than zero")
+	}
+	if expectedVersion != c.Version {
+		return Conflict("command_version_conflict", "command was already replaced or changed")
+	}
+
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return Invalid("invalid_command_reason", "reason is required")
+	}
+	requestedBy = strings.TrimSpace(requestedBy)
+	if requestedBy == "" {
+		return Invalid("invalid_requested_by", "requested_by is required")
+	}
+	if c.StartingAperture < 0 || c.StartingAperture > maxAperture {
+		return Invalid("invalid_starting_aperture", "starting aperture is outside the gate limit")
+	}
+	if targetAperture < 0 || targetAperture > maxAperture {
+		return Invalid("invalid_target_aperture", "target aperture is outside the gate limit")
+	}
+	if targetAperture == c.StartingAperture {
+		return Invalid("no_aperture_change", "target aperture must differ from the current aperture")
+	}
+	if targetAperture == c.TargetAperture && reason == c.Reason {
+		return Invalid("no_command_facts_change", "replacement must change target aperture or reason")
+	}
+
+	revision := CommandRevision{
+		TargetAperture:   c.TargetAperture,
+		Reason:           c.Reason,
+		RequestedBy:      c.RequestedBy,
+		StartingAperture: c.StartingAperture,
+		Version:          c.Version,
+		SupersededAt:     now.UTC(),
+	}
+	c.Revisions = append(c.Revisions, revision)
+	c.TargetAperture = targetAperture
+	c.Reason = reason
+	c.RequestedBy = requestedBy
+	c.UpdatedAt = now.UTC()
+	c.Version++
+	return nil
 }
 
 func (c *GateCommand) Review(decision InterlockDecision, token string, now time.Time) error {

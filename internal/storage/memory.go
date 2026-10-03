@@ -79,6 +79,46 @@ func (m *MemoryRepository) Command(_ context.Context, id string) (domain.GateCom
 	return cloneCommand(command), nil
 }
 
+func (m *MemoryRepository) ReplaceCommand(
+	_ context.Context,
+	commandID string,
+	targetAperture float64,
+	reason string,
+	requestedBy string,
+	expectedVersion int64,
+	now time.Time,
+) (domain.GateCommand, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	command, exists := m.commands[commandID]
+	if !exists {
+		return domain.GateCommand{}, domain.NotFound("command_not_found", "command id was not found")
+	}
+	gate, exists := m.gates[command.GateID]
+	if !exists {
+		return domain.GateCommand{}, domain.NotFound("gate_not_found", "gate id was not found")
+	}
+	if gate.Status == domain.GateFaulted {
+		return domain.GateCommand{}, domain.Conflict("gate_faulted", "faulted gates cannot receive command replacements")
+	}
+
+	nextCommand := cloneCommand(command)
+	if err := nextCommand.Replace(
+		targetAperture,
+		gate.MaxAperture,
+		reason,
+		requestedBy,
+		expectedVersion,
+		now,
+	); err != nil {
+		return domain.GateCommand{}, err
+	}
+
+	m.commands[nextCommand.ID] = nextCommand
+	return cloneCommand(nextCommand), nil
+}
+
 func (m *MemoryRepository) ReviewCommand(
 	_ context.Context,
 	commandID string,
@@ -167,10 +207,12 @@ func (m *MemoryRepository) ExecuteCommand(
 }
 
 func cloneCommand(command domain.GateCommand) domain.GateCommand {
-	if command.Interlock == nil {
-		return command
+	if command.Interlock != nil {
+		decision := *command.Interlock
+		command.Interlock = &decision
 	}
-	decision := *command.Interlock
-	command.Interlock = &decision
+	if command.Revisions != nil {
+		command.Revisions = append([]domain.CommandRevision(nil), command.Revisions...)
+	}
 	return command
 }

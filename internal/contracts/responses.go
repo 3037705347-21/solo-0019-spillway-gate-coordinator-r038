@@ -12,6 +12,15 @@ type InterlockDecisionView struct {
 	ReviewedAt string `json:"reviewed_at"`
 }
 
+type CommandRevisionView struct {
+	TargetAperture   float64 `json:"target_aperture"`
+	StartingAperture float64 `json:"starting_aperture"`
+	Reason           string  `json:"reason"`
+	RequestedBy      string  `json:"requested_by"`
+	Version          int64   `json:"version"`
+	SupersededAt     string  `json:"superseded_at"`
+}
+
 type GateView struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -32,6 +41,7 @@ type CommandView struct {
 	RequestedBy      string                 `json:"requested_by"`
 	Status           string                 `json:"status"`
 	Interlock        *InterlockDecisionView `json:"interlock,omitempty"`
+	Revisions        []CommandRevisionView  `json:"revisions,omitempty"`
 	ExecutionToken   string                 `json:"execution_token,omitempty"`
 	ExecutedBy       string                 `json:"executed_by,omitempty"`
 	TerminalReason   string                 `json:"terminal_reason,omitempty"`

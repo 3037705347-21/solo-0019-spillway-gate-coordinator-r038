@@ -2,6 +2,7 @@ package coordination
 
 import (
 	"context"
+	"strings"
 
 	"example.com/spillway-gate-coordinator/internal/contracts"
 	"example.com/spillway-gate-coordinator/internal/domain"
@@ -42,6 +43,40 @@ func (s *Service) RequestCommand(
 
 func (s *Service) Command(ctx context.Context, id string) (domain.GateCommand, error) {
 	return s.repository.Command(ctx, id)
+}
+
+func (s *Service) ReplaceCommand(
+	ctx context.Context,
+	commandID string,
+	request contracts.ReplaceCommandRequest,
+) (domain.GateCommand, error) {
+	expectedVersion := request.ExpectedVersion
+	if request.Version != 0 {
+		if expectedVersion != 0 && request.Version != expectedVersion {
+			return domain.GateCommand{}, domain.Invalid("invalid_expected_version", "version fields must match")
+		}
+		expectedVersion = request.Version
+	}
+	if expectedVersion <= 0 {
+		return domain.GateCommand{}, domain.Invalid("invalid_expected_version", "expected_version must be greater than zero")
+	}
+
+	if strings.TrimSpace(request.RequestedBy) == "" {
+		existing, err := s.repository.Command(ctx, commandID)
+		if err != nil {
+			return domain.GateCommand{}, err
+		}
+		request.RequestedBy = existing.RequestedBy
+	}
+	return s.repository.ReplaceCommand(
+		ctx,
+		commandID,
+		request.TargetAperture,
+		request.Reason,
+		request.RequestedBy,
+		expectedVersion,
+		s.now(),
+	)
 }
 
 func (s *Service) ReviewInterlock(
