@@ -79,6 +79,61 @@ func (m *MemoryRepository) Command(_ context.Context, id string) (domain.GateCom
 	return cloneCommand(command), nil
 }
 
+// ReplaceCommand atomically retires a pending command into the superseded
+// state and stores its fresh pending replacement. Every validation runs before
+// either record is written, so a raced review, a duplicate replacement or an
+// invalid replacement leave the original application untouched.
+func (m *MemoryRepository) ReplaceCommand(
+	_ context.Context,
+	commandID string,
+	replacement domain.GateCommand,
+	now time.Time,
+) (domain.GateCommand, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	command, exists := m.commands[commandID]
+	if !exists {
+		return domain.GateCommand{}, domain.NotFound("command_not_found", "command id was not found")
+	}
+	gate, exists := m.gates[command.GateID]
+	if !exists {
+		return domain.GateCommand{}, domain.NotFound("gate_not_found", "gate id was not found")
+	}
+	if replacement.GateID != command.GateID {
+		return domain.GateCommand{}, domain.Invalid(
+			"invalid_gate_reference",
+			"replacement command must target the same gate",
+		)
+	}
+	if gate.Status == domain.GateFaulted {
+		return domain.GateCommand{}, domain.Conflict("gate_faulted", "faulted gates cannot receive replacement commands")
+	}
+	if replacement.StartingAperture != gate.Aperture {
+		return domain.GateCommand{}, domain.Conflict(
+			"gate_aperture_changed",
+			"gate aperture changed before the replacement was stored",
+		)
+	}
+	if replacement.TargetAperture > gate.MaxAperture {
+		return domain.GateCommand{}, domain.Invalid("invalid_target_aperture", "target aperture is outside the gate limit")
+	}
+	if _, exists := m.commands[replacement.ID]; exists {
+		return domain.GateCommand{}, domain.Conflict("duplicate_command_id", "command id already exists")
+	}
+
+	// Mutate only copies; the stored maps are updated after this point and
+	// only if every check succeeds.
+	nextCommand := cloneCommand(command)
+	if err := nextCommand.Supersede(replacement.ID, now); err != nil {
+		return domain.GateCommand{}, err
+	}
+
+	m.commands[nextCommand.ID] = nextCommand
+	m.commands[replacement.ID] = replacement
+	return cloneCommand(replacement), nil
+}
+
 func (m *MemoryRepository) ReviewCommand(
 	_ context.Context,
 	commandID string,

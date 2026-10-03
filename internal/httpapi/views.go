@@ -35,6 +35,8 @@ func commandView(command domain.GateCommand, includeToken bool) contracts.Comman
 		Status:           string(command.Status),
 		ExecutedBy:       command.ExecutedBy,
 		TerminalReason:   command.TerminalReason,
+		SupersedesID:     command.SupersedesID,
+		SupersededBy:     command.SupersededBy,
 		CreatedAt:        formatTime(command.CreatedAt),
 		UpdatedAt:        formatTime(command.UpdatedAt),
 		Version:          command.Version,

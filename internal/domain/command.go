@@ -8,12 +8,13 @@ import (
 type CommandStatus string
 
 const (
-	CommandPending   CommandStatus = "pending"
-	CommandApproved  CommandStatus = "approved"
-	CommandRejected  CommandStatus = "rejected"
-	CommandExecuting CommandStatus = "executing"
-	CommandCompleted CommandStatus = "completed"
-	CommandAborted   CommandStatus = "aborted"
+	CommandPending    CommandStatus = "pending"
+	CommandApproved   CommandStatus = "approved"
+	CommandRejected   CommandStatus = "rejected"
+	CommandExecuting  CommandStatus = "executing"
+	CommandCompleted  CommandStatus = "completed"
+	CommandAborted    CommandStatus = "aborted"
+	CommandSuperseded CommandStatus = "superseded"
 )
 
 type GateCommand struct {
@@ -28,6 +29,8 @@ type GateCommand struct {
 	ExecutionToken   string
 	ExecutedBy       string
 	TerminalReason   string
+	SupersedesID     string
+	SupersededBy     string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Version          int64
@@ -73,6 +76,64 @@ func NewGateCommand(
 		return GateCommand{}, Invalid("no_aperture_change", "target aperture must differ from the current aperture")
 	}
 
+	return newGateCommand(
+		commandID,
+		gateID,
+		targetAperture,
+		startingAperture,
+		reason,
+		requestedBy,
+		"",
+		now,
+	), nil
+}
+
+// NewReplacementCommand creates the current pending application that replaces
+// supersedesID. The replacement is a fresh command with its own id; the
+// superseded command stays stored for traceability but can never be reviewed.
+func NewReplacementCommand(
+	commandID string,
+	supersedesID string,
+	gateID string,
+	targetAperture float64,
+	startingAperture float64,
+	maxAperture float64,
+	reason string,
+	requestedBy string,
+	now time.Time,
+) (GateCommand, error) {
+	supersedesID = strings.TrimSpace(supersedesID)
+	if supersedesID == "" {
+		return GateCommand{}, Invalid("invalid_supersedes_reference", "replaced command id is required")
+	}
+
+	command, err := NewGateCommand(
+		commandID,
+		gateID,
+		targetAperture,
+		startingAperture,
+		maxAperture,
+		reason,
+		requestedBy,
+		now,
+	)
+	if err != nil {
+		return GateCommand{}, err
+	}
+	command.SupersedesID = supersedesID
+	return command, nil
+}
+
+func newGateCommand(
+	commandID string,
+	gateID string,
+	targetAperture float64,
+	startingAperture float64,
+	reason string,
+	requestedBy string,
+	supersedesID string,
+	now time.Time,
+) GateCommand {
 	return GateCommand{
 		ID:               commandID,
 		GateID:           gateID,
@@ -81,10 +142,31 @@ func NewGateCommand(
 		Reason:           reason,
 		RequestedBy:      requestedBy,
 		Status:           CommandPending,
+		SupersedesID:     supersedesID,
 		CreatedAt:        now.UTC(),
 		UpdatedAt:        now.UTC(),
 		Version:          1,
-	}, nil
+	}
+}
+
+// Supersede retires a pending command in favour of the replacement command.
+// The original content is preserved (only status and the back-link change);
+// any status other than pending fails and leaves the command untouched.
+func (c *GateCommand) Supersede(replacementID string, now time.Time) error {
+	if c.Status != CommandPending {
+		return Conflict("command_not_replaceable", "only pending commands can be replaced with new business facts")
+	}
+
+	replacementID = strings.TrimSpace(replacementID)
+	if replacementID == "" {
+		return Invalid("invalid_replacement_command", "replacement command id is required")
+	}
+
+	c.SupersededBy = replacementID
+	c.Status = CommandSuperseded
+	c.UpdatedAt = now.UTC()
+	c.Version++
+	return nil
 }
 
 func (c *GateCommand) Review(decision InterlockDecision, token string, now time.Time) error {

@@ -18,6 +18,7 @@ POST /gates
 GET  /gates/{id}
 POST /commands
 GET  /commands/{id}
+POST /commands/{id}/replacement
 POST /commands/{id}/interlock
 POST /commands/{id}/execute
 ```
@@ -40,6 +41,16 @@ POST /commands/{id}/execute
   "gate_id": "gate-east",
   "target_aperture": 2.25,
   "reason": "上游水位调整",
+  "requested_by": "dispatcher-lin"
+}
+```
+
+复核前替换待复核申请示例（`POST /commands/{id}/replacement`）：原命令转为终态 `superseded` 且仍可追溯，响应返回新的 pending 命令；后续复核只认替换链上的当前申请。
+
+```json
+{
+  "target_aperture": 3.0,
+  "reason": "修订后的申请依据",
   "requested_by": "dispatcher-lin"
 }
 ```
@@ -67,7 +78,7 @@ POST /commands/{id}/execute
 ## 目录
 
 - `cmd/server`：服务进程。
-- `cmd/workflowcheck`：四条工作流的真实 HTTP 检查入口。
+- `cmd/workflowcheck`：五条工作流的真实 HTTP 检查入口。
 - `internal/bootstrap`：依赖装配。
 - `internal/contracts`：公开数据契约。
 - `internal/coordination`：业务工作流。
@@ -80,6 +91,7 @@ POST /commands/{id}/execute
 ```sh
 go run ./cmd/workflowcheck --workflow register-gate
 go run ./cmd/workflowcheck --workflow request-gate-command
+go run ./cmd/workflowcheck --workflow replace-pending-command
 go run ./cmd/workflowcheck --workflow review-safety-interlock
 go run ./cmd/workflowcheck --workflow execute-gate-command
 ```

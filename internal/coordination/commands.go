@@ -44,6 +44,48 @@ func (s *Service) Command(ctx context.Context, id string) (domain.GateCommand, e
 	return s.repository.Command(ctx, id)
 }
 
+// ReplaceCommand lets the coordinator swap the business facts of a command
+// that is still waiting on safety review. The previous pending command becomes
+// superseded (kept for traceability, never reviewable) and a new pending
+// command becomes the current application for the same gate.
+func (s *Service) ReplaceCommand(
+	ctx context.Context,
+	commandID string,
+	request contracts.ReplaceCommandRequest,
+) (domain.GateCommand, error) {
+	command, err := s.repository.Command(ctx, commandID)
+	if err != nil {
+		return domain.GateCommand{}, err
+	}
+
+	gate, err := s.repository.Gate(ctx, command.GateID)
+	if err != nil {
+		return domain.GateCommand{}, err
+	}
+
+	replacementID, err := s.newID("cmd")
+	if err != nil {
+		return domain.GateCommand{}, domain.Internal("command_id_generation_failed", "command id could not be generated")
+	}
+
+	replacement, err := domain.NewReplacementCommand(
+		replacementID,
+		command.ID,
+		gate.ID,
+		request.TargetAperture,
+		gate.Aperture,
+		gate.MaxAperture,
+		request.Reason,
+		request.RequestedBy,
+		s.now(),
+	)
+	if err != nil {
+		return domain.GateCommand{}, err
+	}
+
+	return s.repository.ReplaceCommand(ctx, commandID, replacement, s.now())
+}
+
 func (s *Service) ReviewInterlock(
 	ctx context.Context,
 	commandID string,

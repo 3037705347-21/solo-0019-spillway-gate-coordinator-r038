@@ -26,6 +26,12 @@
 
 运行协调员通过 `POST /commands` 提交开度调整命令。服务读取闸门当前开度和限制，校验目标开度与申请信息，创建待复核命令并冻结起始开度。
 
+### replace-pending-command
+
+运行协调员通过 `POST /commands/{id}/replacement` 提交新的业务事实（目标开度、申请原因、申请人）。仅当命令仍为 pending 时允许替换：服务在同一事务内把原命令置为 `superseded` 并写入一条新的 pending 命令，新命令拥有独立标识、以当前闸门开度重新冻结起始开度，并通过 `supersedes_id`/`superseded_by` 与原命令双向关联。被替换的原内容继续可通过 `GET /commands/{id}` 追溯，但既不能再次复核或执行，也不占用闸门；后续复核只处理替换链上当前有效的 pending 命令。
+
+下列情况必须明确失败且不改变原申请：对非 pending（已被替换、已复核通过、已拒绝、执行中、已完成、已中止）命令执行替换；重复替换已经失效的命令；替换申请本身校验不通过（如目标开度越界、原因为空、目标开度等于当前开度）；命令不存在；并发的复核抢先成功或并发的替换抢先成功。校验全部通过前不写入任何一条记录。
+
 ### review-safety-interlock
 
 安全复核员通过 `POST /commands/{id}/interlock` 提交复核结论。clear 结论会原子占用闸门并签发一次执行令牌；blocked 结论会把命令置为 rejected。其他命令先占用同一闸门时，当前 clear 结论返回冲突且不改变闸门。
@@ -37,8 +43,10 @@
 ## 状态与规则
 
 - `gate` 状态：idle、reserved、moving、faulted。
-- `gate_command` 状态：pending、approved、rejected、executing、completed、aborted。
-- 只有 pending 命令可以复核。
+- `gate_command` 状态：pending、approved、rejected、executing、completed、aborted、superseded。
+- 只有 pending 命令可以复核，也只有 pending 命令可以被替换。
+- superseded 是终态：旧内容永久可查，但不能复核、执行或再次替换，也不会占用闸门。
+- 替换原子完成：原命令转 superseded 与新 pending 命令写入同时成功或同时不发生。
 - 只有 approved 命令可以执行，且执行令牌必须匹配。
 - clear 复核与闸门占用必须同时成功；任一步失败时两者都不写入。
 - blocked 复核使命令 rejected，不会占用闸门。
@@ -62,6 +70,7 @@
 - `GET /gates/{id}`
 - `POST /commands`
 - `GET /commands/{id}`
+- `POST /commands/{id}/replacement`
 - `POST /commands/{id}/interlock`
 - `POST /commands/{id}/execute`
 

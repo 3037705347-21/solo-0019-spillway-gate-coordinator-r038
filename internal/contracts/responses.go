@@ -35,6 +35,8 @@ type CommandView struct {
 	ExecutionToken   string                 `json:"execution_token,omitempty"`
 	ExecutedBy       string                 `json:"executed_by,omitempty"`
 	TerminalReason   string                 `json:"terminal_reason,omitempty"`
+	SupersedesID     string                 `json:"supersedes_id,omitempty"`
+	SupersededBy     string                 `json:"superseded_by,omitempty"`
 	CreatedAt        string                 `json:"created_at"`
 	UpdatedAt        string                 `json:"updated_at"`
 	Version          int64                  `json:"version"`

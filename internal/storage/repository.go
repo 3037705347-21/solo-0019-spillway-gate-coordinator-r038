@@ -12,6 +12,12 @@ type Repository interface {
 	Gate(ctx context.Context, id string) (domain.Gate, error)
 	CreateCommand(ctx context.Context, command domain.GateCommand) error
 	Command(ctx context.Context, id string) (domain.GateCommand, error)
+	ReplaceCommand(
+		ctx context.Context,
+		commandID string,
+		replacement domain.GateCommand,
+		now time.Time,
+	) (domain.GateCommand, error)
 	ReviewCommand(
 		ctx context.Context,
 		commandID string,

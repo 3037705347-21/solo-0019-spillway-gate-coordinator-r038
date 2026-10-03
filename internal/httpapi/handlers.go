@@ -66,6 +66,25 @@ func (h *handler) command(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *handler) replaceCommand(w http.ResponseWriter, r *http.Request) {
+	var request contracts.ReplaceCommandRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	command, err := h.service.ReplaceCommand(r.Context(), r.PathValue("id"), request)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(
+		w,
+		http.StatusCreated,
+		contracts.CommandResponse{Command: commandView(command, false)},
+	)
+}
+
 func (h *handler) reviewInterlock(w http.ResponseWriter, r *http.Request) {
 	var request contracts.ReviewInterlockRequest
 	if err := decodeJSON(w, r, &request); err != nil {
